@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ibkr-cost-basis-calc/filereader"
 	"github.com/ibkr-cost-basis-calc/models"
+	"github.com/ibkr-cost-basis-calc/utils"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	defer file.Close()
 
 	// Reads a csv and returns a map[firstColumn][][]row
-	m := filereader.ReadCSV(file)
+	m := utils.ReadCSV(file)
 
 	for key := range m {
 		fmt.Fprintf(os.Stdout, "> Looking at key: %s %s %s\n", colorYellow, key, colorReset)

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/ibkr-cost-basis-calc/utils"
 )
 
 type Trade struct {
@@ -27,7 +29,6 @@ type Trade struct {
 func NewTrade(data []string) (*Trade, error) {
 	trade := &Trade{}
 
-	// Check that the first column is 'Trades'
 	if data[0] != "Trades" {
 		return nil, fmt.Errorf("Invalid data. First column should be 'Trades', got %s", data[0])
 	}
@@ -48,14 +49,11 @@ func NewTrade(data []string) (*Trade, error) {
 
 	// Handle DateTime (pointer to time.Time)
 	if data[6] != "" {
-		dateTime, err := time.Parse("2006-01-02, 15:04:05", data[6])
+		dateTime, err := utils.ParseDate(data[6])
 		if err != nil {
-			// Try alternative format if the first one fails
-			dateTime, err = time.Parse("2006-01-02", data[6])
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse DateTime %s: %v", data[6], err)
-			}
+			return nil, fmt.Errorf("failed to parse DateTime %s: %v", data[6], err)
 		}
+
 		trade.DateTime = &dateTime
 	}
 
