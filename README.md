@@ -1,8 +1,8 @@
 # Profit Calculator
 
-April 2025 Update: Still WIP. Can't use tool yet!
+Or loss calculator if you have a bad year. 
 
-Or loss calculator if you have a bad year. Alternatively, if you're from Wallstreet Bets, I have a Wendy's resume generator [here](https://youtu.be/dQw4w9WgXcQ?feature=shared).
+May 2025 Update: Still WIP. Can't use tool yet!
 
 Profit Calculator is a niche project aimed to help users of Interactive Brokers LCC in Japan calculator their profit/loss for a given year. Finding our Profit/Loss is not trivial, as we need to find when we entered a trade in JPY terms, then find when we exited a trade in JPY terms. The implication of this is that it's possible to have had a profit despite a loss in USD terms, or vice versa.
 
@@ -14,6 +14,8 @@ As taxable events applies to equities, options, dividends, and interest, this to
 - Go 1.22 or higher
 
 ## How to Use
+
+If you're from Wallstreet Bets, I have a Wendy's resume generator [here](https://youtu.be/dQw4w9WgXcQ?feature=shared).
 
 - Compile program
 
