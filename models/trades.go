@@ -2,109 +2,143 @@ package models
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
+	exchangerateservice "github.com/ibkr-cost-basis-calc/services"
 	"github.com/ibkr-cost-basis-calc/utils"
 )
 
 type Trade struct {
-	Category          string     `csv:"Trades"`
-	Header            string     `csv:"Header"`
-	DataDiscriminator string     `csv:"DataDiscriminator"`
-	AssetCategory     string     `csv:"Asset Category"`
-	Currency          string     `csv:"Currency"`
-	Symbol            string     `csv:"Symbol"`
-	DateTime          *time.Time `csv:"Date/Time"`
-	Quantity          float64    `csv:"Quantity"`
-	TransactionPrice  *float64   `csv:"T. Price"`
-	Proceeds          float64    `csv:"Proceeds"`
-	CommFee           float64    `csv:"Comm/Fee"`
-	Basis             float64    `csv:"Basis"`
-	RealizedPL        float64    `csv:"Realized P/L"`
-	Code              string     `csv:"Code"`
+	Category          string    `csv:"Trades"`
+	Header            string    `csv:"Header"`
+	DataDiscriminator string    `csv:"DataDiscriminator"`
+	AssetCategory     string    `csv:"Asset Category"`
+	Currency          string    `csv:"Currency"`
+	Symbol            string    `csv:"Symbol"`
+	DateTime          time.Time `csv:"Date/Time"`
+	Quantity          int64     `csv:"Quantity"`
+	TransactionPrice  float64   `csv:"T. Price"`
+	Proceeds          float64   `csv:"Proceeds"`
+	CommFee           float64   `csv:"Comm/Fee"`
+	Basis             float64   `csv:"Basis"`
+	RealizedPL        float64   `csv:"Realized P/L"`
+	Code              string    `csv:"Code"`
+	Extra             CalculatedData
 }
 
-func NewTrade(data []string) (*Trade, error) {
-	trade := &Trade{}
+type CalculatedData struct {
+	Action      string  // "BUY" or "SELL"
+	JPYRate     float64 // Exchange rate for the transaction
+	ProceedsJPY float64 // Proceeds converted to JPY
+	BasisJPY    float64 // Basis converted to JPY
+	PLJPY       float64 // Profit/Loss in JPY
+}
 
+var rateService, _ = exchangerateservice.NewExchangeRateService("data/usdjpy/2024.csv")
+
+func NewTrade(data []string) (*Trade, error) {
+	// Sanity checks
 	if data[0] != "Trades" {
 		return nil, fmt.Errorf("Invalid data. First column should be 'Trades', got %s", data[0])
 	}
-
+	// Find how many fields Trade should have and validate against data
 	tradeType := reflect.TypeOf(Trade{})
 	numFields := tradeType.NumField()
-	if len(data) != numFields {
+	if len(data) != numFields-1 {
 		return nil, fmt.Errorf("Trades needs %v properties. Got %v with values %v", numFields, len(data[0]), data)
 	}
 
-	// Map each element to its corresponding field
-	trade.Category = data[0]          // "Trades"
-	trade.Header = data[1]            // "Header"
-	trade.DataDiscriminator = data[2] // "DataDiscriminator"
-	trade.AssetCategory = data[3]     // "Asset Category"
-	trade.Currency = data[4]          // "Currency"
-	trade.Symbol = data[5]            // "Symbol"
+	transactionDate := parseDate(data[6])
 
-	// Handle DateTime (pointer to time.Time)
-	if data[6] != "" {
-		dateTime, err := utils.ParseDate(data[6])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse DateTime %s: %v", data[6], err)
-		}
-
-		trade.DateTime = &dateTime
-	}
-
-	// Handle Quantity
-	quantity, err := strconv.ParseFloat(data[7], 64)
+	USDJPYRate, err := rateService.GetRate(transactionDate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse Quantity %s: %v", data[7], err)
-	}
-	trade.Quantity = quantity
-
-	// Handle TransactionPrice (pointer to float64)
-	if data[8] != "" {
-		tPrice, err := strconv.ParseFloat(data[8], 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse TransactionPrice %s: %v", data[8], err)
-		}
-		trade.TransactionPrice = &tPrice
+		log.Fatalf("Error getting exchange rate: %v", err)
 	}
 
-	// Handle Proceeds
-	proceeds, err := strconv.ParseFloat(data[9], 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Proceeds %s: %v", data[9], err)
+	trade := &Trade{
+		Category:          data[0],
+		Header:            data[1],
+		DataDiscriminator: data[2],
+		AssetCategory:     data[3],
+		Currency:          data[4],
+		Symbol:            data[5],
+		DateTime:          transactionDate,
+		Quantity:          parseInt(data[7]),
+		TransactionPrice:  parseFloat(data[8]),
+		Proceeds:          parseFloat(data[9]),
+		CommFee:           parseFloat(data[10]),
+		Basis:             parseFloat(data[11]),
+		RealizedPL:        parseFloat(data[12]),
+		Code:              data[13],
 	}
-	trade.Proceeds = proceeds
 
-	// Handle CommFee
-	commFee, err := strconv.ParseFloat(data[10], 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse CommFee %s: %v", data[10], err)
+	extra := CalculatedData{
+		Action:      parseAction(data[9]),
+		JPYRate:     USDJPYRate,
+		ProceedsJPY: getJPYProceeds(parseFloat(data[9]), USDJPYRate),
 	}
-	trade.CommFee = commFee
 
-	// Handle Basis
-	basis, err := strconv.ParseFloat(data[11], 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Basis %s: %v", data[11], err)
-	}
-	trade.Basis = basis
-
-	// Handle RealizedPL
-	realizedPL, err := strconv.ParseFloat(data[12], 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse RealizedPL %s: %v", data[12], err)
-	}
-	trade.RealizedPL = realizedPL
-
-	// Handle Code
-	trade.Code = data[13]
+	trade.Extra = extra
 
 	return trade, nil
+}
+
+func parseAction(proceeds string) string {
+	// Negative proceeds means I bought something, see:
+	// 	Trades,Data,Order,Stocks,USD,SOFI,"2024-01-12, 16:20:00",200,9.5,-1900,0,1900,0,A;O
+	//  Trades,Data,Order,Stocks,USD,SOFI,"2024-11-15, 16:20:00",-100,12.5,1250,-0.05135,-922.681914,345.211868,A;C
+	//  Trades,SubTotal,,Stocks,USD,SOFI,,100,,-650,-0.05135,977.318086,345.211868,
+	if strings.HasPrefix(proceeds, "-") {
+		return "BUY"
+	}
+	return "SELL"
+}
+
+func getJPYProceeds(proceeds float64, fxRate float64) float64 {
+	return proceeds * fxRate
+}
+
+// parseDate parses a string into a time.Time object
+// But also truncates it to fit YYYY-MM-DD
+func parseDate(dateStr string) time.Time {
+	dateTime, err := utils.ParseDate(dateStr[:10])
+	if len(dateStr) < 10 {
+		fmt.Printf("Error parsing date--need YYYY-MM-DD at the very least. Got: %v\n", dateStr)
+	}
+	if err != nil {
+		fmt.Printf("Error parsing date: %v\n", err)
+		panic(err)
+	}
+
+	return dateTime
+}
+
+func parseInt(value string) int64 {
+	if value == "" {
+		panic("Empty value for int")
+	}
+	intValue, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		fmt.Printf("Error parsing int: %v\n", err)
+		panic(err)
+	}
+	return intValue
+}
+
+func parseFloat(value string) float64 {
+	if value == "" {
+		panic("Empty value for float")
+	}
+	floatValue, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		fmt.Printf("Error parsing float: %v\n", err)
+		panic(err)
+	}
+	return floatValue
 }
 
 // Processes trades in USD and finds the PL for each trade, converted to JPY
