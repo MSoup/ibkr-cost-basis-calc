@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"time"
 
 	"github.com/ibkr-cost-basis-calc/models"
+	exchangerateservice "github.com/ibkr-cost-basis-calc/services"
 	"github.com/ibkr-cost-basis-calc/utils"
 )
 
@@ -38,4 +41,22 @@ func main() {
 			models.ProcessInterest(m[key])
 		}
 	}
+
+	getExchangeRates()
+
+}
+
+func getExchangeRates() {
+	rateService, err := exchangerateservice.NewExchangeRateService("data/usdjpy/2024.csv")
+	if err != nil {
+		log.Fatalf("Error initializing exchange rate service: %v", err)
+	}
+
+	// Example lookup
+	tradeDate := time.Date(2024, 10, 25, 0, 0, 0, 0, time.UTC)
+	rate, err := rateService.GetRate(tradeDate)
+	if err != nil {
+		log.Fatalf("Error getting exchange rate: %v", err)
+	}
+	fmt.Printf("USD/JPY rate for %s: %.2f\n", tradeDate.Format("2006-01-02"), rate)
 }

@@ -113,18 +113,23 @@ func ProcessTrades(data [][]string) int {
 	trades := make([]*Trade, 0)
 
 	for _, line := range data {
-		if line[1] == "Header" {
-			// Skip the header
-			fmt.Printf("Skipping header: %v\n", line)
+		// Only process trades that are orders
+		// It's possible that it's a Subtotal row or a Header row, in which case skip
+		if line[1] == "Header" || line[1] == "SubTotal" {
 			continue
 		}
-		trade, err := NewTrade(line)
-		if err != nil {
-			fmt.Printf("Error creating trade: %v\n", err)
-			return 0
+		if line[1] == "Data" && line[2] == "Order" {
+			trade, err := NewTrade(line)
+			if err != nil {
+				fmt.Printf("Error creating trade: %v\n", err)
+				return 0
+			}
+			trades = append(trades, trade)
+		} else {
+			fmt.Printf("Not a trade: %v\n", line)
+			panic("Trade is not of the right format")
 		}
 
-		trades = append(trades, trade)
 	}
 	fmt.Printf("Number of trades processed: %d\n", len(trades))
 
