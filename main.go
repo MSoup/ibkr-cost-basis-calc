@@ -23,7 +23,6 @@ const colorGreen = "\033[0;32m"
 var FILENAME = "2024_trades.csv"
 
 func main() {
-	// Check if a filename was provided as a command line argument
 	if len(os.Args) > 1 {
 		FILENAME = os.Args[1]
 	}
@@ -40,7 +39,7 @@ func main() {
 	m := utils.ReadCSV(file)
 
 	for key := range m {
-		fmt.Fprintf(os.Stdout, "> Processing key %s %s %s\n", colorYellow, key, colorReset)
+		fmt.Fprintf(os.Stdout, "> Processing key: %s %s %s\n", colorYellow, key, colorReset)
 		switch key {
 		case "Trades":
 			models.ProcessTrades(m[key])

@@ -2,7 +2,6 @@ package models
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -38,51 +37,73 @@ type CalculatedData struct {
 	PLJPY       float64 // Profit/Loss in JPY
 }
 
-var rateService, _ = exchangerateservice.NewExchangeRateService("data/usdjpy/2024.csv")
+var rateService, _ = exchangerateservice.NewExchangeRateService()
+
+const (
+	CSVCategoryIndex          = 0
+	CSVHeaderIndex            = 1
+	CSVDataDiscriminatorIndex = 2
+	CSVAssetCategoryIndex     = 3
+	CSVCurrencyIndex          = 4
+	CSVSymbolIndex            = 5
+	CSVDateTimeIndex          = 6 // Transaction date string; parse as needed.
+	CSVQuantityIndex          = 7
+	CSVTransactionPriceIndex  = 8
+	CSVProceedsIndex          = 9
+	CSVCommFeeIndex           = 10
+	CSVBasisIndex             = 11
+	CSVRealizedPLIndex        = 12
+	CSVCodeIndex              = 13
+)
 
 func NewTrade(data []string) (*Trade, error) {
-	// Sanity checks
-	if data[0] != "Trades" {
-		return nil, fmt.Errorf("Invalid data. First column should be 'Trades', got %s", data[0])
+	// Sanity check
+	if data[CSVCategoryIndex] != "Trades" {
+		return nil, fmt.Errorf("Invalid data. Expected 'Trades', got %s", data[CSVCategoryIndex])
 	}
 	// Find how many fields Trade should have and validate against data
 	tradeType := reflect.TypeOf(Trade{})
 	numFields := tradeType.NumField()
 	if len(data) != numFields-1 {
-		return nil, fmt.Errorf("Trades needs %v properties. Got %v with values %v", numFields, len(data[0]), data)
+		return nil, fmt.Errorf("Trades needs %v properties. Got %v with values %v", numFields, len(data[CSVCategoryIndex]), data)
 	}
 
-	transactionDate := parseDate(data[6])
-
-	USDJPYRate, err := rateService.GetRate(transactionDate)
-	if err != nil {
-		log.Fatalf("Error getting exchange rate: %v", err)
-	}
+	transactionDate := parseDate(data[CSVDateTimeIndex])
 
 	trade := &Trade{
-		Category:          data[0],
-		Header:            data[1],
-		DataDiscriminator: data[2],
-		AssetCategory:     data[3],
-		Currency:          data[4],
-		Symbol:            data[5],
+		Category:          data[CSVCategoryIndex],
+		Header:            data[CSVHeaderIndex],
+		DataDiscriminator: data[CSVDataDiscriminatorIndex],
+		AssetCategory:     data[CSVAssetCategoryIndex],
+		Currency:          data[CSVCurrencyIndex],
+		Symbol:            data[CSVSymbolIndex],
 		DateTime:          transactionDate,
-		Quantity:          parseInt(data[7]),
-		TransactionPrice:  parseFloat(data[8]),
-		Proceeds:          parseFloat(data[9]),
-		CommFee:           parseFloat(data[10]),
-		Basis:             parseFloat(data[11]),
-		RealizedPL:        parseFloat(data[12]),
-		Code:              data[13],
+		Quantity:          parseInt(data[CSVQuantityIndex]),
+		TransactionPrice:  parseFloat(data[CSVTransactionPriceIndex]),
+		Proceeds:          parseFloat(data[CSVProceedsIndex]),
+		CommFee:           parseFloat(data[CSVCommFeeIndex]),
+		Basis:             parseFloat(data[CSVBasisIndex]),
+		RealizedPL:        parseFloat(data[CSVRealizedPLIndex]),
+		Code:              data[CSVCodeIndex],
 	}
 
-	extra := CalculatedData{
-		Action:      parseAction(data[9]),
-		JPYRate:     USDJPYRate,
-		ProceedsJPY: getJPYProceeds(parseFloat(data[9]), USDJPYRate),
+	// If currency isn't loaded, load it
+	if !rateService.HasCurrency(trade.Currency) {
+		rateService.AddCurrency(trade.Currency)
 	}
 
-	trade.Extra = extra
+	// rate, err := rateService.GetRate(trade.Currency, transactionDate)
+	// if err != nil {
+	// 	log.Fatalf("Error getting exchange rate: %v", err)
+	// }
+
+	// extra := CalculatedData{
+	// 	Action:      parseAction(data[9]),
+	// 	JPYRate:     rate,
+	// 	ProceedsJPY: getJPYProceeds(parseFloat(data[9]), rate),
+	// }
+
+	// trade.Extra = extra
 
 	return trade, nil
 }
@@ -144,6 +165,7 @@ func parseFloat(value string) float64 {
 // Processes trades in USD and finds the PL for each trade, converted to JPY
 func ProcessTrades(data [][]string) int {
 	fmt.Println("> Processing Trades")
+
 	trades := make([]*Trade, 0)
 
 	for _, line := range data {
@@ -163,13 +185,12 @@ func ProcessTrades(data [][]string) int {
 			fmt.Printf("Not a trade: %v\n", line)
 			panic("Trade is not of the right format")
 		}
-
 	}
 	fmt.Printf("Number of trades processed: %d\n", len(trades))
 
 	fmt.Println("Trade details:")
 	for _, trade := range trades {
-		fmt.Printf("Trade: %+v %v with basis %v\n", trade.Symbol, trade.Quantity, trade.Basis)
+		fmt.Printf("Trade: %+v %5d with basis %10.2f\n", trade.Symbol, trade.Quantity, trade.Basis)
 	}
 	return 0
 }

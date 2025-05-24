@@ -3,6 +3,7 @@ package exchangerateservice
 import (
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -10,19 +11,63 @@ import (
 )
 
 type ExchangeRateService struct {
-	rates map[string]float64
+	rates map[string]map[string]float64
+}
+
+// Rates will look like
+// {
+// 	"USD": {
+// 		"2024-10-25": 152.30,
+// 		"2024-10-24": 152.25,
+// 	},
+// 	"CAD": {
+// 		"2024-10-25": 112.30,
+// 		"2024-10-24": 112.25,
+// 	}
+// }
+
+func NewExchangeRateService() (*ExchangeRateService, error) {
+	return &ExchangeRateService{
+		rates: map[string]map[string]float64{},
+	}, nil
+}
+
+func (s *ExchangeRateService) HasCurrency(currency string) bool {
+	return s.rates[currency] != nil
+}
+
+func (s *ExchangeRateService) AddCurrency(currency string) {
+	if s.rates[currency] == nil {
+		s.rates[currency] = map[string]float64{}
+	}
+
+	s.LoadExchangeRates("./data/usdjpy/", currency)
 }
 
 // NewExchangeRateService creates a new exchange rate service from a CSV file
-func NewExchangeRateService(filepath string) (*ExchangeRateService, error) {
-	rates, err := loadExchangeRates(filepath)
-	if err != nil {
-		return nil, err
-	}
+func (s *ExchangeRateService) LoadExchangeRates(fileDirectory, currency string) (int, error) {
+	fmt.Println("Loading exchange for currency:", currency)
+	fmt.Println("Reading CSV file from path:", fileDirectory)
 
-	return &ExchangeRateService{
-		rates: rates,
-	}, nil
+	csvPath, err := os.ReadDir(fileDirectory)
+
+	if err != nil {
+		fmt.Println("Error reading directory:", err)
+		return 1, err
+	}
+	fmt.Println("CSV files in directory:", csvPath)
+
+	for i := range csvPath {
+		filename := csvPath[i].Name()
+		fmt.Println(filename)
+
+	}
+	// rates, err := loadExchangeRates(filepath)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return 0, nil
 }
 
 // Loads exchange rates from CSV
@@ -70,25 +115,42 @@ func loadExchangeRates(filepath string) (map[string]float64, error) {
 	return rates, nil
 }
 
-// Get exchange rate for a specific date
-func (s *ExchangeRateService) GetRate(date time.Time) (float64, error) {
+// GetRate provides the exchange rate for a specific date for a given currency
+// It will backtrack up to 10 days if the exact date is not found
+func (s *ExchangeRateService) GetRate(originalCurrency string, date time.Time) (float64, error) {
 	dateStr := date.Format("2006-01-02")
 
-	// Try exact date match
-	if rate, ok := s.rates[dateStr]; ok {
-		return rate, nil
+	// Check if the currency exists in the rates map
+	fmt.Println(1)
+
+	if s.rates == nil {
+		fmt.Println("Rates map is nil")
+		return 0.00, errors.New("Rates map is nil")
+	}
+	ratesForCurrency, ok := s.rates[originalCurrency]
+	if !ok {
+		return 0.00, errors.New("Currency not found")
 	}
 
-	// Exact date not found, backtrack to closest previous date
-	// This handles weekends and holidays
-	currentDate := date
-	for range 10 { // Try up to 10 days back
-		currentDate = currentDate.AddDate(0, 0, -1)
-		dateStr = currentDate.Format("2006-01-02")
-		if rate, ok := s.rates[dateStr]; ok {
-			return rate, nil
-		}
-	}
+	fmt.Println(1)
+	fmt.Println(ratesForCurrency)
+	fmt.Println(2)
+	fmt.Println(ratesForCurrency[dateStr])
+	// // Try exact date match
+	// if rateOnDate, ok := ratesForCurrency[dateStr]; ok {
+	// 	return rate, nil
+	// }
+
+	// // Exact date not found, backtrack to closest previous date
+	// // This handles weekends and holidays
+	// currentDate := date
+	// for range 10 { // Try up to 10 days back
+	// 	currentDate = currentDate.AddDate(0, 0, -1)
+	// 	dateStr = currentDate.Format("2006-01-02")
+	// 	if rate, ok := s.rates[dateStr]; ok {
+	// 		return rate, nil
+	// 	}
+	// }
 
 	// Default fallback
 	return 0.00, errors.New("No exchange rate found for the given date, or up to 10 days back")

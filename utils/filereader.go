@@ -6,11 +6,15 @@ import (
 	"io"
 )
 
-func ReadCSV(filepath io.Reader) map[string][][]string {
+// ReadCSV reads a CSV file and returns a map where the key is the first column
+
+type GroupedCSVRecords map[string][][]string
+
+func ReadCSV(filepath io.Reader) GroupedCSVRecords {
 	fmt.Printf("> Reading CSV\n")
 	reader := csv.NewReader(filepath)
 
-	csvMap := make(map[string][][]string)
+	csvMap := make(GroupedCSVRecords)
 
 	for {
 		record, err := reader.Read()
@@ -18,13 +22,14 @@ func ReadCSV(filepath io.Reader) map[string][][]string {
 			fmt.Println("> Loaded CSV into memory")
 			break
 		}
-
+		mapKey := record[0]
 		// Make csvMap entry if header doesn't exist
-		_, ok := csvMap[record[0]]
+		_, ok := csvMap[mapKey]
 		if !ok {
-			csvMap[record[0]] = make([][]string, 0)
+			fmt.Println("> Creating new key:", mapKey)
+			csvMap[mapKey] = make([][]string, 0)
 		}
-		csvMap[record[0]] = append(csvMap[record[0]], record)
+		csvMap[mapKey] = append(csvMap[mapKey], record)
 	}
 
 	return csvMap
