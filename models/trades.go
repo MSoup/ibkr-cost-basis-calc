@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -92,18 +93,18 @@ func NewTrade(data []string) (*Trade, error) {
 		rateService.AddCurrency(trade.Currency)
 	}
 
-	// rate, err := rateService.GetRate(trade.Currency, transactionDate)
-	// if err != nil {
-	// 	log.Fatalf("Error getting exchange rate: %v", err)
-	// }
+	rate, err := rateService.GetRate(trade.Currency, transactionDate)
+	if err != nil {
+		log.Fatalf("Error getting exchange rate: %v", err)
+	}
 
-	// extra := CalculatedData{
-	// 	Action:      parseAction(data[9]),
-	// 	JPYRate:     rate,
-	// 	ProceedsJPY: getJPYProceeds(parseFloat(data[9]), rate),
-	// }
+	extra := CalculatedData{
+		Action:      parseAction(data[9]),
+		JPYRate:     rate,
+		ProceedsJPY: getJPYProceeds(trade.Basis, rate),
+	}
 
-	// trade.Extra = extra
+	trade.Extra = extra
 
 	return trade, nil
 }
@@ -189,8 +190,8 @@ func ProcessTrades(data [][]string) int {
 	fmt.Printf("Number of trades processed: %d\n", len(trades))
 
 	fmt.Println("Trade details:")
-	for _, trade := range trades {
-		fmt.Printf("Trade: %+v %5d with basis %10.2f\n", trade.Symbol, trade.Quantity, trade.Basis)
+	for i, trade := range trades {
+		fmt.Printf("Trade %v: %4v %5d %s (%3.2f) %10.2f USD (%10.0f JPY) \n", i, trade.Symbol, trade.Quantity, trade.DateTime.Format("01/02/2006"), trade.Extra.JPYRate, trade.Basis, trade.Extra.ProceedsJPY)
 	}
 	return 0
 }

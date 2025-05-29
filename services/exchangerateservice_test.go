@@ -1,6 +1,7 @@
 package exchangerateservice
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -13,10 +14,13 @@ var rateService *ExchangeRateService
 // Setup shared test resources
 func TestMain(m *testing.M) {
 	var err error
-	rateService, err = NewExchangeRateService(rateDirectory)
+	rateService, err = NewExchangeRateService()
 	if err != nil {
+		fmt.Println("Error creating ExchangeRateService:", err)
 		os.Exit(1)
 	}
+
+	rateService.AddCurrency("USD")
 
 	// Run the tests
 	code := m.Run()
@@ -29,7 +33,7 @@ func TestMain(m *testing.M) {
 func TestGetRate(t *testing.T) {
 	tradeDate := time.Date(2024, 10, 25, 0, 0, 0, 0, time.UTC) // 10/25/2024
 	want := 152.30                                             // Rate on 10/25/2024
-	rate, err := rateService.GetRate(tradeDate)
+	rate, err := rateService.GetRate("USD", tradeDate)
 	if want != rate || err != nil {
 		t.Errorf(`GetRate(%v) = %v, %v, want match for %v, nil`, want, rate, err, want)
 	}
@@ -39,7 +43,7 @@ func TestGetRate(t *testing.T) {
 // checking for an error.
 func TestGetRateInvalidTime(t *testing.T) {
 	currentDate := time.Time{}
-	rate, err := rateService.GetRate(currentDate)
+	rate, err := rateService.GetRate("USD", currentDate)
 	if err == nil {
 		t.Errorf(`GetRate(%v) = %v, %v, want match for 0.00, %v`, currentDate, rate, err, nil)
 	}

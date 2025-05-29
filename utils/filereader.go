@@ -19,7 +19,7 @@ func ReadCSV(filepath io.Reader) GroupedCSVRecords {
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
-			fmt.Println("> Loaded CSV into memory")
+			fmt.Println("> Loaded trades into memory")
 			break
 		}
 		mapKey := record[0]
